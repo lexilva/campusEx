@@ -1,0 +1,56 @@
+name: Move Task in Kanban Board
+
+on:
+  issues:
+    types: [opened, closed]
+  pull_request:
+    types: [opened, closed]
+
+jobs:
+  move-task:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Mover tarefa no GitHub Projects
+        uses: actions/github-script@v6
+        with:
+          github-token: ${{ secrets.GH_PAT }}
+          script: |
+            const projectNumber = 1;  // Substitua pelo número do seu projeto
+            const columnName = context.payload.issue ? (context.payload.action === "opened" ? "To Do" : "Done") 
+                                                    : (context.payload.action === "opened" ? "In Progress" : "Done");
+
+            async function moveIssueToColumn() {
+              const { data: projects } = await github.rest.projects.listForRepo({
+                owner: context.repo.owner,
+                repo: context.repo.repo
+              });
+
+              const project = projects.find(p => p.number === projectNumber);
+              if (!project) {
+                console.log("Projeto não encontrado.");
+                return;
+              }
+
+              const { data: columns } = await github.rest.projects.listColumns({
+                project_id: project.id
+              });
+
+              const column = columns.find(c => c.name === columnName);
+              if (!column) {
+                console.log("Coluna não encontrada.");
+                return;
+              }
+
+              const card = context.payload.issue ? context.payload.issue.id : context.payload.pull_request.id;
+
+              await github.rest.projects.createCard({
+                column_id: column.id,
+                content_id: card,
+                content_type: "Issue"
+              });
+
+              console.log(`Movido para ${columnName}`);
+            }
+
+            moveIssueToColumn();
